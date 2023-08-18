@@ -1,4 +1,5 @@
 #pragma once
+#include "displayManager.h"
 
 namespace congb
 {
@@ -11,5 +12,8 @@ namespace congb
 		bool InitEngine();
 		void ShutdownEngine();
 		void Run();
+
+	private:
+		displayManager gDisplayManager;
 	};
 }
