@@ -9,11 +9,11 @@ namespace congb
 		Engine();
 		~Engine();
 
-		bool InitEngine();
-		void ShutdownEngine();
-		void Run();
+		bool initEngine();
+		void shutdownEngine();
+		void run();
 
 	private:
-		displayManager gDisplayManager;
+		DisplayManager gDisplayManager;
 	};
 }

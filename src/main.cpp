@@ -1,3 +1,5 @@
+#include <cstdio>
+
 #include "engine.h"
 
 using namespace congb;
@@ -5,9 +7,16 @@ using namespace congb;
 int main(int argc, char* argv[])
 {
 	Engine engine;
-	engine.InitEngine();
-	engine.Run();
-	engine.ShutdownEngine();
+	if(engine.initEngine())
+	{
+		engine.run();
+	}
+	else
+	{
+		printf("Failed to initialize engine.\n");
+	}
+	
+	engine.shutdownEngine();
 
 	return 0;
 }

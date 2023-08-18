@@ -6,17 +6,27 @@ namespace congb{
 	Engine::Engine() {}
 	Engine::~Engine() {}
 
-	bool Engine::InitEngine()
+	bool Engine::initEngine()
 	{
 		printf("InitEngine\n");
+		unsigned int startTime = SDL_GetTicks();
+
+		if(!gDisplayManager.startUp())
+		{
+			printf("Failed to initialize displayManager.\n");
+			return false;
+		}
+
+		unsigned int deltaTime = SDL_GetTicks() - startTime;
+		printf("(Engine load time: %ums)\n", deltaTime);
 		return true;
 	}
 
-	void Engine::ShutdownEngine()
+	void Engine::shutdownEngine()
 	{
 		printf("ShutdownEngine\n");
 	}
-	void Engine::Run()
+	void Engine::run()
 	{
 		printf("Engine Running...\n");
 	}
