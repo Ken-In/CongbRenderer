@@ -1,5 +1,8 @@
 #pragma once
 #include "displayManager.h"
+#include "inputManager.h"
+#include "renderManager.h"
+#include "sceneManager.h"
 
 namespace congb
 {
@@ -14,6 +17,9 @@ namespace congb
 		void run();
 
 	private:
-		DisplayManager gDisplayManager;
+		DisplayManager	gDisplayManager;
+		InputManager	gInputManager;
+		SceneManager	gSceneManager;
+		RenderManager	gRenderManager;
 	};
 }

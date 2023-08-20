@@ -1,6 +1,7 @@
 ﻿#include "displayManager.h"
 
 #include <cstdio>
+#include <glad/glad.h>
 
 namespace congb
 {
@@ -88,6 +89,27 @@ namespace congb
             printf("Failed to create OpenGL context. Error: %s\n", SDL_GetError());
             return false;
         }
+
+        if(!gladLoadGLLoader(SDL_GL_GetProcAddress))
+        {
+            printf("GLAD could not load SDL Context.\n");
+            return false;
+        }
+
+        printf("Vendor:     $s\n", glGetString(GL_VENDOR));
+        printf("Renderer:   $s\n", glGetString(GL_RENDERER));
+        printf("Version:    $s\n", glGetString(GL_VERSION));
+
+        // 交换buffer 1 = 垂直同步
+        SDL_GL_SetSwapInterval(1);
+        glEnable(GL_CULL_FACE);
+        glEnable(GL_MULTISAMPLE);
+        glEnable(GL_FRAMEBUFFER_SRGB);
+        glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
+
+        int w, h;
+        SDL_GetWindowSize(mWindow, &w, &h);
+        glViewport(0, 0, w, h);
         return true;
     }
 }
