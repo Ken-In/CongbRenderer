@@ -23,7 +23,7 @@ namespace congb
         bool preProcess();
         bool postProcess();
 
-        Shader simpleShader;
+        Shader helloTriangleShader;
 
         Camera  *sceneCamera;
         DisplayManager  *screen;

@@ -1,9 +1,6 @@
 #include "shader.h"
-#include <iostream>
 #include <fstream>
 #include <sstream>
-
-#include "SDL2/include/SDL_opengl_glext.h"
 
 namespace congb
 {
@@ -11,7 +8,6 @@ namespace congb
     {
         bool gShaderOn = geometryPath != "";
         std::string shaderFolderPath = "../assets/shaders/";
-
         std::string vertexCode, fragmentCode, geometryCode;
         std::stringstream vShaderStream, gShaderStream, fShaderStream;
         std::ifstream vShaderFile(shaderFolderPath + vertexPath);
