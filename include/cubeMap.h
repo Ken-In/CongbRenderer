@@ -24,6 +24,5 @@ namespace congb
 
         unsigned int maxMipLevels;
 
-        static Cube 
     };
 }
