@@ -25,14 +25,7 @@ namespace congb
 
         Mesh(const std::vector<Vertex> &vertices,
              const std::vector<unsigned int> &indices,
-             const std::vector<unsigned int> &textures)
-        {
-            this->vertices = vertices;
-            this->indices  = indices;
-            this->textures = textures;
-
-            setupMesh();
-        }
+             const std::vector<unsigned int> &textures);
 
         void setupMesh();
         void draw(const Shader &shader, bool textured);

@@ -1,8 +1,6 @@
 cmake_minimum_required(VERSION 3.7)
 project(CongbRenderer)
 
-set(CMAKE_CXX_STANDARD 17)
-
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/modules")
 
 if(WIN32)
@@ -12,14 +10,18 @@ if(WIN32)
     # using Intel C++ (Does nothing yet)
   elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
     set(SDL2_PATH "${CMAKE_SOURCE_DIR}/libs/SDL2")
+    set(ASSIMP_ROOT_DIR "${CMAKE_SOURCE_DIR}/libs/assimp")
   endif()
 endif()
 
 find_package(SDL2 REQUIRED)
 include_directories(${SDL2_INCLUDE_DIR} include libs)
 
+find_package(ASSIMP REQUIRED)
+include_directories(${ASSIMP_INCLUDE_DIR} include libs)
+
 file(GLOB source_files "*.h" "*.cpp" "src/*.cpp" "include/*.h")
-file(GLOB_RECURSE lib_files "libs/*.h" "libs/*.c" "libs/*.cpp")
+file(GLOB_RECURSE lib_files "libs/*.h" "libs/*.c" "libs/*.cpp" "libs/*.hpp")
 set(ALL_SRC_FILES ${source_files} ${lib_files})
 add_executable(CongbRenderer ${ALL_SRC_FILES})
 
@@ -28,6 +30,7 @@ target_include_directories(CongbRenderer PRIVATE
 )
 
 target_link_libraries(CongbRenderer ${SDL2_LIBRARY})
+target_link_libraries(CongbRenderer ${ASSIMP_LIBRARY})
 
 if(WIN32)
     set_target_properties(CongbRenderer PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/build")
@@ -35,5 +38,11 @@ if(WIN32)
     add_custom_command(TARGET CongbRenderer POST_BUILD COMMAND
     ${CMAKE_COMMAND} -E copy_if_different
     ${SDL2_DLL}
+    $<TARGET_FILE_DIR:CongbRenderer>)
+
+    #Copy assimp dll
+    add_custom_command(TARGET CongbRenderer POST_BUILD COMMAND
+    ${CMAKE_COMMAND} -E copy_if_different
+    "${CMAKE_SOURCE_DIR}/libs/assimp/lib64/release/assimp-vc140-mt.dll"
     $<TARGET_FILE_DIR:CongbRenderer>)
 endif()
