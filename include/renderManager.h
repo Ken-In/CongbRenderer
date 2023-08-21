@@ -28,6 +28,7 @@ namespace congb
         Camera  *sceneCamera;
         DisplayManager  *screen;
         SceneManager    *sceneLocator;
+        unsigned int    VAO, VBO, EBO;
 
     };
 }

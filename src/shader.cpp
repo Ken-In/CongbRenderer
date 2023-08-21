@@ -69,15 +69,19 @@ namespace congb
             return false;
         }
 
-        int geometryShader = glCreateShader(GL_FRAGMENT_SHADER);
-        glShaderSource(geometryShader, 1, &gShaderCode, nullptr);
-        glCompileShader(geometryShader);
-        glGetShaderiv(geometryShader, GL_COMPILE_STATUS, &success);
-        if(!success)
+        int geometryShader;
+        if(gShaderOn)
         {
-            glGetShaderInfoLog(geometryShader, 512, nullptr, infoLog);
-            printf("Fragment shader compilation failed %s\n", infoLog );
-            return false;
+            geometryShader = glCreateShader(GL_FRAGMENT_SHADER);
+            glShaderSource(geometryShader, 1, &gShaderCode, nullptr);
+            glCompileShader(geometryShader);
+            glGetShaderiv(geometryShader, GL_COMPILE_STATUS, &success);
+            if(!success)
+            {
+                glGetShaderInfoLog(geometryShader, 512, nullptr, infoLog);
+                printf("Fragment shader compilation failed %s\n", infoLog );
+                return false;
+            }
         }
 
         ID = glCreateProgram();
