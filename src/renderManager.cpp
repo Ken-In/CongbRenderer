@@ -15,6 +15,10 @@ namespace congb
         printf("\nInitializing Renderer.\n");
         screen          = &displayManager;
         sceneLocator    = &sceneManager;
+        currentScene    = sceneLocator->getCurrentScene();
+        sceneCamera     = currentScene->getCurrentCamera();
+
+        // todo: FBO
         
         printf("Loading Shaders...\n");
         if(!loadShaders())
@@ -23,7 +27,12 @@ namespace congb
             return false;
         }
 
-        float vertices[] = 
+        // todo: SSBO
+
+        // todo: Preprocessing
+
+
+        /*float vertices[] = 
         {
             0.0f, 0.5f, 0.0f,   
             -0.5f, -0.5f, 0.0f,  
@@ -49,7 +58,7 @@ namespace congb
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
 
         glBindBuffer(GL_ARRAY_BUFFER, 0);
-        glBindVertexArray(0);
+        glBindVertexArray(0);*/
         
         printf("Renderer Initialization complete.\n");
         return true;
@@ -57,8 +66,8 @@ namespace congb
 
     void RenderManager::shutDown()
     {
-        glDeleteVertexArrays(1, &VAO);
-        glDeleteBuffers(1, &VBO);
+        /*glDeleteVertexArrays(1, &VAO);
+        glDeleteBuffers(1, &VBO);*/
         
         screen      = nullptr;
         sceneCamera = nullptr;
@@ -67,13 +76,18 @@ namespace congb
 
     void RenderManager::render()
     {
-        glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
+        /*glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
         helloTriangleShader.use();
         glBindVertexArray(VAO);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-        glBindVertexArray(0);
+        glBindVertexArray(0);*/
+        
+        glDepthFunc(GL_LEQUAL);
+        glDepthMask(false);
+        currentScene->drawFullScene(simpleShader);
+        
         GLenum error = glGetError();
         if (error != GL_NO_ERROR) {
             printf("OpenGL error：%d\n", error);
@@ -90,6 +104,7 @@ namespace congb
     {
         bool success = true;
         success &= helloTriangleShader.setup("1_helloTriangle.vert", "1_helloTriangle.frag", "");
+        success &= simpleShader.setup("2_simpleShader.vert", "2_simpleShader.frag", "");
 
         if(!success)
         {
@@ -105,9 +120,8 @@ namespace congb
         return true;
     }
 
-    bool RenderManager::postProcess()
+    void RenderManager::postProcess()
     {
-        return true;
     }
 }
 

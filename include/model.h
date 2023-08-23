@@ -1,11 +1,10 @@
 ﻿#pragma once
-#include <cvt/wstring>
 
 #include "mesh.h"
 #include "shader.h"
 #include "glm/glm.hpp"
 #include "assimp/scene.h"
-#include "nlohmann/json.hpp"
+#include <unordered_map>
 
 namespace congb
 {
@@ -14,7 +13,7 @@ namespace congb
         TransformParameters() : scale(glm::vec3(1.0f)){}
         glm::vec3 translation;
         float angle;
-        glm::vec3 rotate;
+        glm::vec3 rotateAxis;
         glm::vec3 scale;
     };
     

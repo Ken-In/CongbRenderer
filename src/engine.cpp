@@ -55,6 +55,8 @@ namespace congb{
 
 			gInputManager.processInput(done, deltaTime);
 
+			gSceneManager.update(deltaTime);
+			
 			gRenderManager.render();
 			
 			deltaTime = SDL_GetTicks() - start;

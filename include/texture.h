@@ -15,9 +15,9 @@ namespace congb
     };
 
     struct Texture{
+        void loadTexture(const std::string &filePath, bool sRGB);
         void loadHDRTexture(const std::string &filePath);
         unsigned int loadDDSTexture(char const* Filename);
-        void loadTexture(const std::string &filePath, bool sRGB);
 
         //Allocate space for a texure directly on the gpu and return an ID
         static unsigned int genTextureDirectlyOnGPU(const int width, const int height,
