@@ -16,11 +16,6 @@ namespace congb{
 			printf("Failed to initialize displayManager.\n");
 			return false;
 		}
-		if(!gInputManager.startUp())
-		{
-			printf("Failed to initialize inputManager.\n");
-			return false;
-		}
 		if(!gSceneManager.startUp())
 		{
 			printf("Failed to initialize sceneManager.\n");
@@ -29,6 +24,11 @@ namespace congb{
 		if(!gRenderManager.startUp(gDisplayManager, gSceneManager))
 		{
 			printf("Failed to initialize renderManager.\n");
+			return false;
+		}
+		if(!gInputManager.startUp(gSceneManager))
+		{
+			printf("Failed to initialize inputManager.\n");
 			return false;
 		}
 		unsigned int deltaTime = SDL_GetTicks() - startTime;
