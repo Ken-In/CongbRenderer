@@ -1,4 +1,5 @@
 ﻿#pragma once
+#include "meshPrimitives.h"
 #include "texture.h"
 
 namespace congb
@@ -24,5 +25,10 @@ namespace congb
 
         unsigned int maxMipLevels;
 
+        static Cube cubeMapCube;
+        static const glm::mat4 capatureViews[6];
+        static const unsigned int numSidesInCube;
+        static const glm::mat4 captureProjection;
+        static const std::string fileHandleForFaces[6];
     };
 }

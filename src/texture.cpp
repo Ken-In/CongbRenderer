@@ -78,6 +78,25 @@ namespace congb
     
     void Texture::loadHDRTexture(const std::string& filePath)
     {
+        stbi_set_flip_vertically_on_load(true);
+
+        float* data = stbi_loadf(filePath.c_str(), &width, &height, &nComponents, 0);
+        if(data)
+        {
+            glGenTextures(1, &textureID);
+            glBindTexture(GL_TEXTURE_2D, textureID);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, width, height, 0, GL_RGB, GL_FLOAT, data);
+
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        }
+        else
+        {
+            printf("Texture failed to load at path: %s \n", filePath.c_str());
+        }
+        stbi_image_free(data);
     }
 
     unsigned Texture::loadDDSTexture(char const* Filename)

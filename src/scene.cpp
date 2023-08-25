@@ -59,11 +59,12 @@ namespace congb
     {
     }
 
-    void Scene::drawFullScene(const Shader& mainSceneShader)
+    void Scene::drawFullScene(const Shader& mainSceneShader, const Shader& skyboxShader)
     {
         glm::mat4 MVP   = glm::mat4(1.0);
         glm::mat4 M     = glm::mat4(1.0);
         glm::mat4 VP    = mainCamera->projectionMatrix * mainCamera->viewMatrix;
+        glm::mat4 VPCubeMap = mainCamera->projectionMatrix *glm::mat4(glm::mat3(mainCamera->viewMatrix));
 
         const unsigned int numTextures = 5;
 
@@ -84,11 +85,13 @@ namespace congb
             mainSceneShader.setMat4("MVP", MVP);
             mainSceneShader.setMat4("M", M);
 
-            currentModel->draw(mainSceneShader, false);
+            currentModel->draw(mainSceneShader, true);
         }
 
         // todo : skybox
-        
+        skyboxShader.use();
+        skyboxShader.setMat4("VP", VPCubeMap);
+        mainSkybox.draw();
     }
 
     void Scene::drawDepthPass(const Shader& depthPassShader)
@@ -142,7 +145,10 @@ namespace congb
         loadSceneModels(configJson);
 
         // todo: skybox
-
+        printf("Loading models...\n");
+        CubeMap::cubeMapCube.setup();
+        loadSkyBox(configJson);
+        
         // todo: lights
 
         // todo: enviroment map
@@ -158,6 +164,12 @@ namespace congb
 
     void Scene::loadSkyBox(const json& sceneConfigJson)
     {
+        json skyBox = sceneConfigJson["skybox"];
+        std::string skyBoxName = skyBox["id"];
+        bool isHDR = skyBox["hdr"];
+        int resolution = skyBox["resolution"];
+
+        mainSkybox.setup(skyBoxName, isHDR, resolution);
     }
 
     void Scene::loadLights(const json& sceneConfigJson)

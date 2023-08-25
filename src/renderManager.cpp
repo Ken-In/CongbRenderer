@@ -18,7 +18,12 @@ namespace congb
         currentScene    = sceneLocator->getCurrentScene();
         sceneCamera     = currentScene->getCurrentCamera();
 
-        // todo: FBO
+        printf("Loading FBO's...\n");
+        if(!initFBOs())
+        {
+            printf("FBO's failed to be initialized correctly.\n");
+            return false;
+        }
         
         printf("Loading Shaders...\n");
         if(!loadShaders())
@@ -30,7 +35,11 @@ namespace congb
         // todo: SSBO
 
         // todo: Preprocessing
-
+        printf("Preprocessing...\n");
+        if (!preProcess()){
+            printf("SSBO's failed to be initialized correctly.\n");
+            return false;
+        }
 
         /*float vertices[] = 
         {
@@ -83,10 +92,14 @@ namespace congb
         glBindVertexArray(VAO);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
         glBindVertexArray(0);*/
-        
+
+        glViewport(0, 0, screen->SCREEN_WIDTH, screen->SCREEN_HEIGHT);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        // depth test setting
+        glEnable(GL_DEPTH_TEST);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glDepthFunc(GL_LEQUAL);
-        glDepthMask(false);
-        currentScene->drawFullScene(simpleShader);
+        currentScene->drawFullScene(simpleShader, skyboxShader);
         
         GLenum error = glGetError();
         if (error != GL_NO_ERROR) {
@@ -97,7 +110,12 @@ namespace congb
 
     bool RenderManager::initFBOs()
     {
-        return true;
+        bool stillValid = true;
+        int skyboxRes = currentScene->mainSkybox.resolution;
+        
+        stillValid &= captureFBO.setupFrameBuffer(skyboxRes, skyboxRes);
+        
+        return stillValid;
     }
 
     bool RenderManager::loadShaders()
@@ -105,7 +123,9 @@ namespace congb
         bool success = true;
         success &= helloTriangleShader.setup("1_helloTriangle.vert", "1_helloTriangle.frag", "");
         success &= simpleShader.setup("2_simpleShader.vert", "2_simpleShader.frag", "");
-
+        success &= skyboxShader.setup("3_skyboxShader.vert", "3_skyboxShader.frag", "");
+        success &= fillCubeMapShader.setup("3_buildCubeMapShader.vert", "3_buildCubeMapShader.frag");
+        
         if(!success)
         {
             printf("Error loading Shaders!\n");
@@ -117,6 +137,15 @@ namespace congb
 
     bool RenderManager::preProcess()
     {
+        glDisable(GL_BLEND);
+
+        canvas.setup();
+
+        // fill skybox
+        captureFBO.bind();
+        currentScene->mainSkybox.fillCubeMapWithTexture(fillCubeMapShader);
+        
+        
         return true;
     }
 

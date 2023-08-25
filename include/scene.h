@@ -4,6 +4,7 @@
 #include "light.h"
 #include "model.h"
 #include "shader.h"
+#include "skybox.h"
 #include "nlohmann/json.hpp"
 
 
@@ -21,7 +22,7 @@ namespace congb
 
         void drawPointLightShadow(const Shader &pointLightShader, unsigned int index, unsigned int cubeMapTarget);
         void drawDirLightShadow(const Shader &dirLightShader, unsigned int targetTextureID);
-        void drawFullScene(const Shader &mainSceneShader);
+        void drawFullScene(const Shader &mainSceneShader, const Shader &skyboxShader);
         void drawDepthPass(const Shader &depthPassShader);
 
         std::vector<Model*>* getVisibleModels();
@@ -30,6 +31,8 @@ namespace congb
         unsigned int getShadowRes();
 
         bool loadingError;
+
+        Skybox mainSkybox;
         
         Camera *mainCamera;
         

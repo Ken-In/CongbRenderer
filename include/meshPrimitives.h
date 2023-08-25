@@ -5,7 +5,7 @@ namespace congb
 {
     struct Primitive
     {
-        Primitive(unsigned int numVertex) : numVertices(numVertices){}
+        Primitive(unsigned int numVertex) : numVertices(numVertex){}
         virtual void draw(const unsigned int readTex1 = 0, const unsigned int readTex2 = 0, const unsigned int readTex3 = 0);
         virtual void setup() = 0;
         unsigned int VAO, VBO;
