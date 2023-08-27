@@ -15,6 +15,7 @@ layout (location = 4) in vec3 biTangent_tS;
 out VS_OUT{
     vec3 fragPos_wS;
     vec2 texCoords;
+    vec4 fragPos_lS;
     vec3 T;
     vec3 B;
     vec3 N;
@@ -22,6 +23,7 @@ out VS_OUT{
 
 uniform mat4 MVP;
 uniform mat4 M;
+uniform mat4 lightSpaceMatrix;
 
 void main(){
     //Position in clip space
@@ -37,4 +39,7 @@ void main(){
     vs_out.T = normalize(mat3(M) * tangent_tS);
     vs_out.B = normalize(mat3(M) * biTangent_tS);
     vs_out.N = normalize(mat3(M) * normal_mS);
+
+    //Lights space output
+    vs_out.fragPos_lS  = lightSpaceMatrix * vec4(vs_out.fragPos_wS, 1.0);
 }

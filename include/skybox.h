@@ -20,6 +20,7 @@ namespace congb
 
         Texture equirectangleMap;
         CubeMap skyBoxCubeMap;
+        bool isHDR;
     };
 }
 

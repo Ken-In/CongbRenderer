@@ -26,7 +26,9 @@ namespace congb
         bool preProcess();
         void postProcess();
 
-        Shader helloTriangleShader, simpleShader, skyboxShader, fillCubeMapShader;
+        Shader helloTriangleShader, simpleShader, skyboxShader, fillCubeMapShader,
+               highPassFilterShader, gaussianBlurShader, screenSpaceShader,
+               dirShadowShader;
 
         Camera  *sceneCamera;
         Scene   *currentScene;
@@ -35,7 +37,10 @@ namespace congb
 
         Quad canvas;
 
+        ResolveBuffer simpleFBO;
         CaptureBuffer captureFBO;
-        //unsigned int    VAO, VBO, EBO;
+        QuadHDRBuffer pingPongFBO;
+        FrameBufferMultiSampled multiSampledFBO;
+        DirShadowBuffer  dirShadowFBO;
     };
 }

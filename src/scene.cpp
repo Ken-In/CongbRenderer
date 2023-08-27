@@ -57,6 +57,34 @@ namespace congb
 
     void Scene::drawDirLightShadow(const Shader& dirLightShader, unsigned targetTextureID)
     {
+        glm::mat4 ModelLS = glm::mat4(1.0);
+        dirLight.depthMapTextureID = targetTextureID;
+
+        float left = 0;
+        float right = dirLight.orthoBoxSize;
+        float bottom = 0;
+        float top = dirLight.orthoBoxSize;
+        dirLight.shadowProjectionMat = glm::ortho(left, right, bottom, top, dirLight.zNear, dirLight.zFar);
+        dirLight.lightView = glm::lookAt(10.0f * -dirLight.direction,
+                                         glm::vec3(0.0f, 0.0f, 0.0f),
+                                         glm::vec3(0.0f, 1.0f, 0.0f));
+
+        dirLight.lightSpaceMatrix = dirLight.shadowProjectionMat * dirLight.lightView;
+
+        //Drawing every object into the shadow buffer
+        for(unsigned int i = 0; i < modelsInScene.size(); ++i){
+            Model * currentModel = modelsInScene[i];
+
+            //Matrix setup
+            ModelLS = dirLight.lightSpaceMatrix * currentModel->modelMatrix;
+
+            //Shader setup stuff that changes every frame
+            dirLightShader.use();
+            dirLightShader.setMat4("lightSpaceMatrix", ModelLS);
+        
+            //Draw object
+            currentModel->draw(dirLightShader, false);
+        }
     }
 
     void Scene::drawFullScene(const Shader& mainSceneShader, const Shader& skyboxShader)
@@ -71,9 +99,16 @@ namespace congb
         // todo : ui
 
         // todo : add dirLight and pointLights
-
-        
         mainSceneShader.use();
+        mainSceneShader.setVec3("dirLight.direction", dirLight.direction);
+        mainSceneShader.setBool("slices", slices);
+        mainSceneShader.setVec3("dirLight.color",   dirLight.strength * dirLight.color);
+        mainSceneShader.setMat4("lightSpaceMatrix", dirLight.lightSpaceMatrix);
+        
+        //Direction light shadow map
+        glActiveTexture(GL_TEXTURE0 + numTextures);
+        mainSceneShader.setInt("shadowMap", numTextures);
+        glBindTexture(GL_TEXTURE_2D, dirLight.depthMapTextureID);
 
         for(unsigned int i = 0; i < visibleModels.size(); ++i)
         {
@@ -174,8 +209,82 @@ namespace congb
 
     void Scene::loadLights(const json& sceneConfigJson)
     {
-    }
+        //Directional light
+        printf("Loading directional light...\n");
+        {
+            json light = sceneConfigJson["directionalLight"];
 
+            json direction = light["direction"];
+            dirLight.direction = glm::vec3((float)direction[0],
+                                            (float)direction[1],
+                                            (float)direction[2]);
+
+            json color = light["color"];
+            dirLight.color = glm::vec3((float)color[0],
+                                            (float)color[1],
+                                            (float)color[2]);
+                                        
+            //Scalar values
+            dirLight.distance = (float)light["distance"];
+            dirLight.strength = (float)light["strength"];
+            dirLight.zNear = (float)light["zNear"];
+            dirLight.zFar = (float)light["zFar"];
+            dirLight.orthoBoxSize = (float)light["orthoSize"];
+            dirLight.shadowRes = (unsigned int)light["shadowRes"];
+
+            float left   = 0;
+            float right  = dirLight.orthoBoxSize;
+            float bottom = 0;
+            float top    = dirLight.orthoBoxSize;
+            dirLight.shadowProjectionMat = glm::ortho(left, right, bottom, top, dirLight.zNear, dirLight.zFar);
+            dirLight.lightView = glm::lookAt(dirLight.distance * -dirLight.direction,
+                                            glm::vec3(0.0f, 0.0f, 0.0f),
+                                            glm::vec3(0.0f, 1.0f, 0.0f));
+
+            dirLight.lightSpaceMatrix = dirLight.shadowProjectionMat * dirLight.lightView;
+        }
+        //Point lights
+        printf("Loading point light...\n");
+        {
+            //Get number of lights in scene and initialize array containing them
+            pointLightCount = (unsigned int)sceneConfigJson["pointLights"].size();
+            pointLights = new PointLight[pointLightCount];
+
+            for(unsigned int i = 0; i < pointLightCount; ++i){
+                json light = sceneConfigJson["pointLights"][i];
+
+                json position = light["position"];
+                pointLights[i].position = glm::vec3((float)position[0],
+                                                    (float)position[1],
+                                                    (float)position[2]);
+
+                json color = light["color"];
+                pointLights[i].color = glm::vec3((float)color[0],
+                                                 (float)color[1],
+                                                 (float)color[2]);
+
+                //Scalar values
+                pointLights[i].strength = (float)light["strength"];
+                pointLights[i].zNear = (float)light["zNear"];
+                pointLights[i].zFar = (float)light["zFar"];
+                pointLights[i].shadowRes = (unsigned int)light["shadowRes"];
+
+                //Matrix setup
+                pointLights[i].shadowProjectionMat = glm::perspective(glm::radians(90.0f), 1.0f,
+                                                                      pointLights[i].zNear,
+                                                                      pointLights[i].zFar);
+            
+                glm::vec3 lightPos = pointLights[i].position;
+                pointLights[i].lookAtPerFace[0] = glm::lookAt(lightPos, lightPos + glm::vec3(1.0, 0.0, 0.0), glm::vec3(0.0, -1.0, 0.0));
+                pointLights[i].lookAtPerFace[1] = glm::lookAt(lightPos, lightPos + glm::vec3(-1.0, 0.0, 0.0), glm::vec3(0.0, -1.0, 0.0));
+                pointLights[i].lookAtPerFace[2] = glm::lookAt(lightPos, lightPos + glm::vec3(0.0, 1.0, 0.0), glm::vec3(0.0, 0.0, 1.0));
+                pointLights[i].lookAtPerFace[3] = glm::lookAt(lightPos, lightPos + glm::vec3(0.0, -1.0, 0.0), glm::vec3(0.0, 0.0, -1.0));
+                pointLights[i].lookAtPerFace[4] = glm::lookAt(lightPos, lightPos + glm::vec3(0.0, 0.0, 1.0), glm::vec3(0.0, -1.0, 0.0));
+                pointLights[i].lookAtPerFace[5] = glm::lookAt(lightPos, lightPos + glm::vec3(0.0, 0.0, -1.0), glm::vec3(0.0, -1.0, 0.0));
+            }
+        }
+    }
+    
     void Scene::loadCamera(const json& sceneConfigJson)
     {
         json cameraSettings = sceneConfigJson["camera"];

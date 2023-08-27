@@ -38,7 +38,12 @@ namespace congb
 
     bool FrameBuffer::setupFrameBuffer()
     {
-        return true;
+        defaultInit();
+
+        texColorBuffer = Texture::genTextureDirectlyOnGPU(width, height, 0, SING_2D_HDR_COL);
+        depthBuffer    = Texture::genTextureDirectlyOnGPU(width, height, 0, SING_2D_HDR_DEP);
+
+        return checkForCompleteness();
     }
 
     bool FrameBuffer::checkForCompleteness()
@@ -65,17 +70,28 @@ namespace congb
 
     bool ResolveBuffer::setupFrameBuffer()
     {
-        return true;
+        defaultInit();
+
+        texColorBuffer = Texture::genTextureDirectlyOnGPU(width, height, 0, SING_2D_HDR_COL);
+        blurHighEnd    = Texture::genTextureDirectlyOnGPU(width, height, 1, SING_2D_HDR_COL_CLAMP);
+        depthBuffer    = Texture::genTextureDirectlyOnGPU(width, height, 0, SING_2D_HDR_DEP);
+
+        return checkForCompleteness();
     }
 
     bool QuadHDRBuffer::setupFrameBuffer()
     {
-        return true;
+        defaultInit();
+
+        texColorBuffer = Texture::genTextureDirectlyOnGPU(width, height, 0, SING_2D_HDR_COL_CLAMP);
+
+        return checkForCompleteness();
     }
 
     void CaptureBuffer::resizeFrameBuffer(int resolution)
     {
-        
+        glBindRenderbuffer(GL_RENDERBUFFER, depthBuffer);
+        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, resolution, resolution);
     }
 
     bool CaptureBuffer::setupFrameBuffer(unsigned w, unsigned h)
@@ -96,7 +112,17 @@ namespace congb
 
     bool DirShadowBuffer::setupFrameBuffer(unsigned w, unsigned h)
     {
-        return true;
+        width = w;
+        height = h;
+        glGenFramebuffers(1, &frameBufferID);
+        glBindFramebuffer(GL_FRAMEBUFFER, frameBufferID);
+
+        depthBuffer = Texture::genTextureDirectlyOnGPU(width, height, 0, SING_2D_HDR_DEP_BORDER);
+
+        glDrawBuffer(GL_NONE);
+        glReadBuffer(GL_NONE);
+
+        return checkForCompleteness();
     }
 
     bool PointShadowBuffer::setupFrameBuffer(unsigned w, unsigned h)

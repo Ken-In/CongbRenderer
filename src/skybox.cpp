@@ -15,14 +15,14 @@ namespace congb
         glDepthFunc(GL_LESS);
     }
 
-    void Skybox::setup(const std::string& skyboxName, bool isHDR, int res)
+    void Skybox::setup(const std::string& skyboxName, bool HDR, int res)
     {
         std::string skyboxFolderPath = "../assets/skyboxes/";
         skyboxFolderPath += skyboxName;
         std::string skyboxFilePath = skyboxFolderPath + "/" + skyboxName + ".hdr";
 
         resolution = res;
-
+        isHDR = HDR;
         if(isHDR)
         {
             equirectangleMap.loadHDRTexture(skyboxFilePath);

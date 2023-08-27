@@ -33,6 +33,7 @@ namespace congb
         bool loadingError;
 
         Skybox mainSkybox;
+        unsigned int pointLightCount;
         
         Camera *mainCamera;
         
