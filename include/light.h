@@ -34,4 +34,13 @@ namespace congb
         glm::vec3 position = glm::vec3(0.0f);
         glm::mat4 lookAtPerFace[6];
     };
+
+    struct GPULight{
+        glm::vec4 position;
+        glm::vec4 color;
+        unsigned int enabled;
+        float intensity;
+        float range;
+        float padding;
+    };
 }

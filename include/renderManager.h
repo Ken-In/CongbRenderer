@@ -22,13 +22,14 @@ namespace congb
 
     private:
         bool initFBOs();
+        bool initSSBOs();
         bool loadShaders();
         bool preProcess();
         void postProcess();
 
         Shader helloTriangleShader, simpleShader, skyboxShader, fillCubeMapShader,
                highPassFilterShader, gaussianBlurShader, screenSpaceShader,
-               dirShadowShader;
+               dirShadowShader, pointShadowShader;
 
         Camera  *sceneCamera;
         Scene   *currentScene;
@@ -37,10 +38,16 @@ namespace congb
 
         Quad canvas;
 
+        unsigned int numLights;
+        const unsigned int maxLights = 1000;
+        
+        unsigned int lightSSBO;
+
         ResolveBuffer simpleFBO;
         CaptureBuffer captureFBO;
         QuadHDRBuffer pingPongFBO;
         FrameBufferMultiSampled multiSampledFBO;
         DirShadowBuffer  dirShadowFBO;
+        PointShadowBuffer* pointLightShadowFBOs;
     };
 }

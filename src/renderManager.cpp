@@ -32,7 +32,11 @@ namespace congb
             return false;
         }
 
-        // todo: SSBO
+        printf("Loading SSBO's...\n");
+        if (!initSSBOs()){
+            printf("SSBO's failed to be initialized correctly.\n");
+            return false;
+        }
 
         printf("Preprocessing...\n");
         if (!preProcess()){
@@ -72,15 +76,6 @@ namespace congb
         currentScene->drawFullScene(simpleShader, skyboxShader);
 
         multiSampledFBO.blitTo(simpleFBO, GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-        // test
-        /*{
-            glBindFramebuffer(GL_READ_FRAMEBUFFER, multiSampledFBO.frameBufferID);
-            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-            glDrawBuffer(GL_COLOR_ATTACHMENT0);
-            glBlitFramebuffer(0, 0, DisplayManager::SCREEN_WIDTH, DisplayManager::SCREEN_HEIGHT, 0, 0, DisplayManager::SCREEN_WIDTH, DisplayManager::SCREEN_HEIGHT, GL_COLOR_BUFFER_BIT, GL_NEAREST);
-            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-        }*/
         
         postProcess();
         
@@ -98,6 +93,18 @@ namespace congb
         //Direction light shadow map
         unsigned int shadowMapResolution = currentScene->getShadowRes();
         stillValid &= dirShadowFBO.setupFrameBuffer(shadowMapResolution, shadowMapResolution);
+        
+        //Point light shadow map
+        numLights = currentScene->pointLightCount;
+        pointLightShadowFBOs = new PointShadowBuffer[numLights];
+        for(unsigned int i = 0; i < numLights; ++i ){
+            stillValid &= pointLightShadowFBOs[i].setupFrameBuffer(shadowMapResolution, shadowMapResolution);
+        }
+
+        if(!stillValid){
+            printf("Error initializing shadow map FBO's!\n");
+            return false;
+        }
         
         //Rendering buffers
         int skyboxRes = currentScene->mainSkybox.resolution;
@@ -121,6 +128,36 @@ namespace congb
         return stillValid;
     }
 
+    bool RenderManager::initSSBOs()
+    {
+        
+        //Setting up lights buffer that contains all the point lights in the scene
+        {
+            glGenBuffers(1, &lightSSBO);
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, lightSSBO);
+            glBufferData(GL_SHADER_STORAGE_BUFFER, maxLights * sizeof(struct GPULight), NULL, GL_DYNAMIC_DRAW);
+
+            GLint bufMask = GL_READ_WRITE;
+
+            struct GPULight *lights = (struct GPULight *)glMapBuffer(GL_SHADER_STORAGE_BUFFER, bufMask);
+            PointLight *light;
+            for(unsigned int i = 0; i < numLights; ++i ){
+                //Fetching the light from the current scene
+                light = currentScene->getPointLight(i);
+                lights[i].position  = glm::vec4(light->position, 1.0f);
+                lights[i].color     = glm::vec4(light->color, 1.0f);
+                lights[i].enabled   = 1; 
+                lights[i].intensity = 1.0f;
+                lights[i].range     = 65.0f;
+            }
+            glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, lightSSBO);
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+        }
+
+        return true;
+    }
+
     bool RenderManager::loadShaders()
     {
         bool success = true;
@@ -134,6 +171,7 @@ namespace congb
 
         // shadow map shader
         success &= dirShadowShader.setup("5_shadowShader.vert", "5_shadowShader.frag");
+        success &= pointShadowShader.setup("5_pointShadowShader.vert", "5_pointShadowShader.frag", "5_pointShadowShader.geom");
         
         // post process shader
         success &= screenSpaceShader.setup("4_screenShader.vert", "4_screenShader.frag");
@@ -161,7 +199,15 @@ namespace congb
         {
             currentScene->mainSkybox.fillCubeMapWithTexture(fillCubeMapShader);
         }
-        
+
+        // draw point light shadow maps
+        glEnable(GL_DEPTH_TEST);
+        glDepthMask(true);
+        for (unsigned int i = 0; i < currentScene->pointLightCount; ++i){
+            pointLightShadowFBOs[i].bind();
+            pointLightShadowFBOs[i].clear(GL_DEPTH_BUFFER_BIT, glm::vec3(1.0f));
+            currentScene->drawPointLightShadow(pointShadowShader,i, pointLightShadowFBOs[i].depthBuffer);
+        }
         
         return true;
     }

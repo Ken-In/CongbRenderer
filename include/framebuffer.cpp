@@ -127,6 +127,18 @@ namespace congb
 
     bool PointShadowBuffer::setupFrameBuffer(unsigned w, unsigned h)
     {
-        return true;
+        width = w;
+        height = h;
+        glGenFramebuffers(1, &frameBufferID);
+        glBindFramebuffer(GL_FRAMEBUFFER, frameBufferID);
+
+        drawingTexture.generateCubeMap(width, height, SHADOW_MAP);
+        depthBuffer = drawingTexture.textureID;
+        glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, depthBuffer, 0);
+
+        glDrawBuffer(GL_NONE);
+        glReadBuffer(GL_NONE);
+
+        return checkForCompleteness();
     }
 }

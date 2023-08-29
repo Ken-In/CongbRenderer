@@ -53,6 +53,33 @@ namespace congb
 
     void Scene::drawPointLightShadow(const Shader& pointLightShader, unsigned index, unsigned cubeMapTarget)
     {
+        //Current light
+        PointLight * light = &pointLights[index];
+        light->depthMapTextureID = cubeMapTarget;
+        //Shader setup
+        pointLightShader.use();
+        pointLightShader.setVec3("lightPos", light->position);
+        pointLightShader.setFloat("far_plane", light->zFar);
+
+        //Matrix setup
+        glm::mat4 lightMatrix, M;
+        glm::mat4 shadowProj = light->shadowProjectionMat;
+        for (unsigned int face = 0; face < 6; ++face){
+            std::string number = std::to_string(face);
+            lightMatrix = shadowProj * light->lookAtPerFace[face];
+            pointLightShader.setMat4(("shadowMatrices[" + number + "]").c_str(), lightMatrix);
+        }
+
+        for(unsigned int i = 0; i < modelsInScene.size(); ++i){
+            Model * currentModel = modelsInScene[i];
+
+            M = currentModel->modelMatrix;
+            //Shader setup stuff that changes every frame
+            pointLightShader.setMat4("M", M);
+        
+            //Draw object
+            currentModel->draw(pointLightShader, false);
+        }
     }
 
     void Scene::drawDirLightShadow(const Shader& dirLightShader, unsigned targetTextureID)
@@ -60,12 +87,12 @@ namespace congb
         glm::mat4 ModelLS = glm::mat4(1.0);
         dirLight.depthMapTextureID = targetTextureID;
 
-        float left = 0;
-        float right = dirLight.orthoBoxSize;
-        float bottom = 0;
-        float top = dirLight.orthoBoxSize;
+        float left   = -dirLight.orthoBoxSize;
+        float right  = dirLight.orthoBoxSize;
+        float bottom = -dirLight.orthoBoxSize;
+        float top    = dirLight.orthoBoxSize;
         dirLight.shadowProjectionMat = glm::ortho(left, right, bottom, top, dirLight.zNear, dirLight.zFar);
-        dirLight.lightView = glm::lookAt(10.0f * -dirLight.direction,
+        dirLight.lightView = glm::lookAt(40.0f * -dirLight.direction,
                                          glm::vec3(0.0f, 0.0f, 0.0f),
                                          glm::vec3(0.0f, 1.0f, 0.0f));
 
@@ -98,16 +125,28 @@ namespace congb
 
         // todo : ui
 
-        // todo : add dirLight and pointLights
+        // set lights
         mainSceneShader.use();
         mainSceneShader.setVec3("dirLight.direction", dirLight.direction);
         mainSceneShader.setBool("slices", slices);
         mainSceneShader.setVec3("dirLight.color",   dirLight.strength * dirLight.color);
         mainSceneShader.setMat4("lightSpaceMatrix", dirLight.lightSpaceMatrix);
+        mainSceneShader.setVec3("cameraPos_wS", mainCamera->position);
+        mainSceneShader.setInt("light_count", pointLightCount);
+        for (unsigned int i = 0; i < pointLightCount; ++i)
+        {
+            PointLight *light = &pointLights[i];
+            std::string number = std::to_string(i);
+
+            glActiveTexture(GL_TEXTURE0 + numTextures + i); 
+            mainSceneShader.setInt(("depthMaps[" + number + "]").c_str(), numTextures + i);
+            glBindTexture(GL_TEXTURE_CUBE_MAP, light->depthMapTextureID);
+            mainSceneShader.setFloat("far_plane", light->zFar);
+        }
         
         //Direction light shadow map
-        glActiveTexture(GL_TEXTURE0 + numTextures);
-        mainSceneShader.setInt("shadowMap", numTextures);
+        glActiveTexture(GL_TEXTURE0 + numTextures + pointLightCount);
+        mainSceneShader.setInt("shadowMap", numTextures + pointLightCount);
         glBindTexture(GL_TEXTURE_2D, dirLight.depthMapTextureID);
 
         for(unsigned int i = 0; i < visibleModels.size(); ++i)
@@ -185,7 +224,9 @@ namespace congb
         loadSkyBox(configJson);
         
         // todo: lights
-
+        printf("Loading lights...\n");
+        loadLights(configJson);
+        
         // todo: enviroment map
 
         printf("Loading Complete!...\n");
@@ -232,9 +273,9 @@ namespace congb
             dirLight.orthoBoxSize = (float)light["orthoSize"];
             dirLight.shadowRes = (unsigned int)light["shadowRes"];
 
-            float left   = 0;
+            float left   = -dirLight.orthoBoxSize;
             float right  = dirLight.orthoBoxSize;
-            float bottom = 0;
+            float bottom = -dirLight.orthoBoxSize;
             float top    = dirLight.orthoBoxSize;
             dirLight.shadowProjectionMat = glm::ortho(left, right, bottom, top, dirLight.zNear, dirLight.zFar);
             dirLight.lightView = glm::lookAt(dirLight.distance * -dirLight.direction,

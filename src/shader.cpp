@@ -72,14 +72,14 @@ namespace congb
         int geometryShader;
         if(gShaderOn)
         {
-            geometryShader = glCreateShader(GL_FRAGMENT_SHADER);
+            geometryShader = glCreateShader(GL_GEOMETRY_SHADER);
             glShaderSource(geometryShader, 1, &gShaderCode, nullptr);
             glCompileShader(geometryShader);
             glGetShaderiv(geometryShader, GL_COMPILE_STATUS, &success);
             if(!success)
             {
                 glGetShaderInfoLog(geometryShader, 512, nullptr, infoLog);
-                printf("Fragment shader compilation failed %s\n", infoLog );
+                printf("Geometry shader compilation failed %s\n", infoLog );
                 return false;
             }
         }
