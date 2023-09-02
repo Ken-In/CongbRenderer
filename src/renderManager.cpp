@@ -1,5 +1,8 @@
 #include "renderManager.h"
 
+#include <random>
+
+#include "gpuData.h"
 namespace congb
 {
     RenderManager::RenderManager()
@@ -72,6 +75,12 @@ namespace congb
         glEnable(GL_DEPTH_TEST);
         glDepthFunc(GL_LEQUAL);
         multiSampledFBO.bind();
+
+        // 计算 cluster 的光照
+        cullLightsCompShader.use();
+        cullLightsCompShader.setMat4("viewMatrix", sceneCamera->viewMatrix);
+        cullLightsCompShader.dispatch(1,1,6); 
+        
         multiSampledFBO.clear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT, glm::vec3(0.0f));
         currentScene->drawFullScene(simpleShader, skyboxShader);
 
@@ -96,8 +105,10 @@ namespace congb
         
         //Point light shadow map
         numLights = currentScene->pointLightCount;
-        pointLightShadowFBOs = new PointShadowBuffer[numLights];
-        for(unsigned int i = 0; i < numLights; ++i ){
+        // 为了防止shadow map爆炸 最多4个shadowMap
+        unsigned int pointLightShadowNum = numLights > 4 ? 4 : numLights;
+        pointLightShadowFBOs = new PointShadowBuffer[pointLightShadowNum];
+        for(unsigned int i = 0; i < pointLightShadowNum; ++i ){
             stillValid &= pointLightShadowFBOs[i].setupFrameBuffer(shadowMapResolution, shadowMapResolution);
         }
 
@@ -130,8 +141,48 @@ namespace congb
 
     bool RenderManager::initSSBOs()
     {
+        // 设置包含所有 cluster 的 AABB buffer
+        {
+            glGenBuffers(1, &AABBvolumeGridSSBO);
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, AABBvolumeGridSSBO);
+
+            //We generate the buffer but don't populate it yet.
+            glBufferData(GL_SHADER_STORAGE_BUFFER, numClusters * sizeof(struct VolumeTileAABB), NULL, GL_STATIC_COPY);
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, AABBvolumeGridSSBO);
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+        }
+
+        sizeX =  (unsigned int)std::ceilf(DisplayManager::SCREEN_WIDTH / (float)gridSizeX);
+        sizeY =  (unsigned int)std::ceilf(DisplayManager::SCREEN_HEIGHT / (float)gridSizeY);
         
-        //Setting up lights buffer that contains all the point lights in the scene
+        float zFar    =  sceneCamera->cameraFrustum.farPlane;
+        float zNear   =  sceneCamera->cameraFrustum.nearPlane;
+
+        // 设置 screen2View ssbo, 传入转换空间需要的数据
+        {
+            glGenBuffers(1, &screenToViewSSBO);
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, screenToViewSSBO);
+
+            //Setting up contents of buffer
+            screen2View.inverseProjectionMat = glm::inverse(sceneCamera->projectionMatrix);
+            screen2View.tileSizeX = gridSizeX;
+            screen2View.tileSizeY = gridSizeY;
+            screen2View.tileSizeZ = gridSizeZ;
+            screen2View.tilePixelSize.x = 1.0f / (float)sizeX;
+            screen2View.tilePixelSize.y = 1.0f / (float)sizeY;
+            screen2View.viewPixelSize.x = 1.0f / (float)DisplayManager::SCREEN_WIDTH;
+            screen2View.viewPixelSize.y = 1.0f / (float)DisplayManager::SCREEN_HEIGHT;
+            //Basically reduced a log function into a simple multiplication an addition by pre-calculating these
+            screen2View.sliceScalingFactor = static_cast<float>(gridSizeZ) / std::log2f(zFar / zNear) ;
+            screen2View.sliceBiasFactor    = -(static_cast<float>(gridSizeZ) * std::log2f(zNear) / std::log2f(zFar / zNear)) ;
+
+            //Generating and copying data to memory in GPU
+            glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(struct ScreenToView), &screen2View, GL_STATIC_COPY);
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, screenToViewSSBO);
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+        }
+        
+        // 设置包含场景中所有点光源的light buffer
         {
             glGenBuffers(1, &lightSSBO);
             glBindBuffer(GL_SHADER_STORAGE_BUFFER, lightSSBO);
@@ -141,6 +192,9 @@ namespace congb
 
             struct GPULight *lights = (struct GPULight *)glMapBuffer(GL_SHADER_STORAGE_BUFFER, bufMask);
             PointLight *light;
+            std::random_device rd; // 用于获取种子
+            std::mt19937 gen(rd()); // 使用种子初始化梅森旋转发生器
+            std::uniform_real_distribution<> dis(5.0, 20.0); 
             for(unsigned int i = 0; i < numLights; ++i ){
                 //Fetching the light from the current scene
                 light = currentScene->getPointLight(i);
@@ -148,13 +202,44 @@ namespace congb
                 lights[i].color     = glm::vec4(light->color, 1.0f);
                 lights[i].enabled   = 1; 
                 lights[i].intensity = 1.0f;
-                lights[i].range     = 65.0f;
+                lights[i].range     = static_cast<float>(dis(gen));
             }
             glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
             glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, lightSSBO);
             glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
         }
 
+        // lightIndexList 记录 cluster 的光源索引，但排序是随机的
+        {
+            unsigned int totalNumLights =  numClusters * maxLightsPerTile; //3456 * maxLightsPerTile * 4
+            glGenBuffers(1, &lightIndexListSSBO);
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, lightIndexListSSBO);
+
+            glBufferData(GL_SHADER_STORAGE_BUFFER,  totalNumLights * sizeof(unsigned int), NULL, GL_STATIC_COPY);
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, lightIndexListSSBO);
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+        }
+        
+        // light grid 按顺序存储每个 cluster 的光源信息，和lightIndexList对应
+        {
+            glGenBuffers(1, &lightGridSSBO);
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, lightGridSSBO);
+
+            // 每个光源记录一个光源数 count 和在 lightIndexList 的偏移 offset
+            glBufferData(GL_SHADER_STORAGE_BUFFER, numClusters * 2 * sizeof(unsigned int), NULL, GL_STATIC_COPY);
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, lightGridSSBO);
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+        }
+
+        // 设置一个 int 记录所有 cluster 的光源数总和
+        {
+            glGenBuffers(1, &lightIndexGlobalCountSSBO);
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, lightIndexGlobalCountSSBO);
+
+            glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(unsigned int), NULL, GL_STATIC_COPY);
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 6, lightIndexGlobalCountSSBO);
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+        }
         return true;
     }
 
@@ -165,10 +250,20 @@ namespace congb
         success &= helloTriangleShader.setup("1_helloTriangle.vert", "1_helloTriangle.frag", "");
         success &= simpleShader.setup("2_simpleShader.vert", "2_simpleShader.frag", "");
 
+        // preProcess
+        success &= buildAABBGridCompShader.setup("6_clusterShader.comp");
+        success &= cullLightsCompShader.setup("6_clusterCullLightShader.comp");
+        
+        if(!success){
+            printf("Error loading pre-processing Shaders!\n");
+            return false;
+        }
+        
         // skybox shader
         success &= skyboxShader.setup("3_skyboxShader.vert", "3_skyboxShader.frag", "");
         success &= fillCubeMapShader.setup("3_buildCubeMapShader.vert", "3_buildCubeMapShader.frag");
-
+        
+        
         // shadow map shader
         success &= dirShadowShader.setup("5_shadowShader.vert", "5_shadowShader.frag");
         success &= pointShadowShader.setup("5_pointShadowShader.vert", "5_pointShadowShader.frag", "5_pointShadowShader.geom");
@@ -193,6 +288,12 @@ namespace congb
 
         canvas.setup();
 
+        // build AABB computer shader
+        buildAABBGridCompShader.use();
+        buildAABBGridCompShader.setFloat("zNear", sceneCamera->cameraFrustum.nearPlane);
+        buildAABBGridCompShader.setFloat("zFar", sceneCamera->cameraFrustum.farPlane);
+        buildAABBGridCompShader.dispatch(gridSizeX, gridSizeY, gridSizeZ);
+        
         // fill skybox
         captureFBO.bind();
         if(currentScene->mainSkybox.isHDR)
@@ -203,7 +304,8 @@ namespace congb
         // draw point light shadow maps
         glEnable(GL_DEPTH_TEST);
         glDepthMask(true);
-        for (unsigned int i = 0; i < currentScene->pointLightCount; ++i){
+        unsigned int shadowNum = currentScene->pointLightCount > 4 ? 4 : currentScene->pointLightCount;
+        for (unsigned int i = 0; i < shadowNum; ++i){
             pointLightShadowFBOs[i].bind();
             pointLightShadowFBOs[i].clear(GL_DEPTH_BUFFER_BIT, glm::vec3(1.0f));
             currentScene->drawPointLightShadow(pointShadowShader,i, pointLightShadowFBOs[i].depthBuffer);

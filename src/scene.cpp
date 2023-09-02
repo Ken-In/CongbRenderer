@@ -1,6 +1,7 @@
 ﻿#include "scene.h"
 
 #include <fstream>
+#include <random>
 
 #include "fileManager.h"
 
@@ -132,8 +133,12 @@ namespace congb
         mainSceneShader.setVec3("dirLight.color",   dirLight.strength * dirLight.color);
         mainSceneShader.setMat4("lightSpaceMatrix", dirLight.lightSpaceMatrix);
         mainSceneShader.setVec3("cameraPos_wS", mainCamera->position);
-        mainSceneShader.setInt("light_count", pointLightCount);
-        for (unsigned int i = 0; i < pointLightCount; ++i)
+        mainSceneShader.setFloat("zFar", mainCamera->cameraFrustum.farPlane);
+        mainSceneShader.setFloat("zNear", mainCamera->cameraFrustum.nearPlane);
+
+        // 支持4个点光 shadowMap
+        unsigned int shadowNum = pointLightCount > 4 ? 4 : pointLightCount;
+        for (unsigned int i = 0; i < shadowNum; ++i)
         {
             PointLight *light = &pointLights[i];
             std::string number = std::to_string(i);
@@ -145,8 +150,8 @@ namespace congb
         }
         
         //Direction light shadow map
-        glActiveTexture(GL_TEXTURE0 + numTextures + pointLightCount);
-        mainSceneShader.setInt("shadowMap", numTextures + pointLightCount);
+        glActiveTexture(GL_TEXTURE0 + numTextures + shadowNum);
+        mainSceneShader.setInt("shadowMap", numTextures + shadowNum);
         glBindTexture(GL_TEXTURE_2D, dirLight.depthMapTextureID);
 
         for(unsigned int i = 0; i < visibleModels.size(); ++i)
@@ -287,9 +292,9 @@ namespace congb
         //Point lights
         printf("Loading point light...\n");
         {
-            //Get number of lights in scene and initialize array containing them
+            const unsigned int totalLightNumInScene = 1000;
             pointLightCount = (unsigned int)sceneConfigJson["pointLights"].size();
-            pointLights = new PointLight[pointLightCount];
+            pointLights = new PointLight[totalLightNumInScene];
 
             for(unsigned int i = 0; i < pointLightCount; ++i){
                 json light = sceneConfigJson["pointLights"][i];
@@ -323,6 +328,20 @@ namespace congb
                 pointLights[i].lookAtPerFace[4] = glm::lookAt(lightPos, lightPos + glm::vec3(0.0, 0.0, 1.0), glm::vec3(0.0, -1.0, 0.0));
                 pointLights[i].lookAtPerFace[5] = glm::lookAt(lightPos, lightPos + glm::vec3(0.0, 0.0, -1.0), glm::vec3(0.0, -1.0, 0.0));
             }
+            std::random_device rd; // 用于获取种子
+            std::mt19937 gen(rd()); // 使用种子初始化梅森旋转发生器
+            std::uniform_real_distribution<> disR(0.0, 1.0); 
+            std::uniform_real_distribution<> disG(0.0, 1.0); 
+            std::uniform_real_distribution<> disB(0.0, 1.0); 
+            std::uniform_real_distribution<> disX(-130.0, 130.0); 
+            std::uniform_real_distribution<> disY(5.0, 90.0); 
+            std::uniform_real_distribution<> disZ(-60.0, 60.0);
+            for(int i = pointLightCount; i < totalLightNumInScene; i++)
+            {
+                pointLights[i].position = glm::vec3(disX(gen), disY(gen), disZ(gen));
+                pointLights[i].color    = glm::vec3(disR(gen), disG(gen), disB(gen));
+            }
+            pointLightCount = totalLightNumInScene;
         }
     }
     

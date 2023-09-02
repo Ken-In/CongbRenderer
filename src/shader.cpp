@@ -135,4 +135,64 @@ namespace congb
     {
         glUniform3fv(glGetUniformLocation(ID, name.c_str()), 1, &vec[0]);
     }
+
+    bool ComputeShader::setup(const std::string computePath)
+    {
+        //Getting the compute shader code from the text file at file path
+        std::string shaderFolderPath = "../assets/shaders/ComputeShaders/";
+        std::string computeCode;
+        std::ifstream cShaderFile(shaderFolderPath + computePath);
+        std::stringstream cShaderStream;
+        //Check if shader files exist
+        if(!cShaderFile.good()){
+            printf("Couldn't find compute shader file: %s in shaders folder.\n ", computePath.c_str());
+            return false;
+        }
+        else{ //Compute Shader Exists
+            cShaderStream << cShaderFile.rdbuf();
+
+            //Close Files
+            cShaderFile.close();
+
+            //Passing code from string stream to string
+            computeCode = cShaderStream.str();
+            const char *cShaderCode = computeCode.c_str();
+        
+            //OpenGL initialization
+            int computeShader = glCreateShader(GL_COMPUTE_SHADER);
+            glShaderSource(computeShader, 1, &cShaderCode, NULL);
+            glCompileShader(computeShader);
+            int success;
+            char infoLog[512];
+            glGetShaderiv(computeShader, GL_COMPILE_STATUS, &success);
+            if (!success)
+            {
+                glGetShaderInfoLog(computeShader, 512, NULL, infoLog);
+                printf("Vertex shader compilation failed %s\n", infoLog);
+                return false;
+            }
+
+            //Linking shaders
+            ID = glCreateProgram();
+            glAttachShader(ID, computeShader);
+            glLinkProgram(ID);
+
+            glGetProgramiv(ID, GL_LINK_STATUS, &success);
+            if (!success){
+                glGetProgramInfoLog(ID, 512, NULL, infoLog);
+                printf("Shader Linking failed %s\n", infoLog);
+                return false;
+            }
+
+            //Deleting shaders
+            glDeleteShader(computeShader);
+            return true;
+        }
+    }
+
+    void ComputeShader::dispatch(unsigned x, unsigned y, unsigned z) const
+    {
+        glDispatchCompute(x, y, z);
+        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);// 等待SSBO写完才进行后面的shader
+    }
 }

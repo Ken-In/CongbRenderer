@@ -24,4 +24,10 @@ namespace congb
 
         unsigned int ID;
     };
+
+    struct ComputeShader : public Shader
+    {
+        bool setup(const std::string computePath);
+        void dispatch(unsigned int x, unsigned int y = 1, unsigned int z = 1) const;
+    };
 }

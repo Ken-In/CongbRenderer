@@ -31,6 +31,8 @@ namespace congb
                highPassFilterShader, gaussianBlurShader, screenSpaceShader,
                dirShadowShader, pointShadowShader;
 
+        ComputeShader buildAABBGridCompShader, cullLightsCompShader;
+        
         Camera  *sceneCamera;
         Scene   *currentScene;
         DisplayManager  *screen;
@@ -38,10 +40,21 @@ namespace congb
 
         Quad canvas;
 
+        // cluster settings
+        const unsigned int gridSizeX = 16;
+        const unsigned int gridSizeY = 9;
+        const unsigned int gridSizeZ = 24;
+        const unsigned int numClusters = gridSizeX * gridSizeY * gridSizeZ; 
+        unsigned int sizeX, sizeY;
+
+        // light settings
         unsigned int numLights;
-        const unsigned int maxLights = 1000;
-        
-        unsigned int lightSSBO;
+        const unsigned int maxLights = 5000;
+        const unsigned int maxLightsPerTile = 1000;
+
+        // SSBO
+        unsigned int AABBvolumeGridSSBO, screenToViewSSBO;
+        unsigned int lightSSBO, lightIndexListSSBO, lightGridSSBO, lightIndexGlobalCountSSBO;
 
         ResolveBuffer simpleFBO;
         CaptureBuffer captureFBO;
