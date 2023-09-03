@@ -1,4 +1,5 @@
-![image](https://github.com/Ken-In/CongbRenderer/assets/55162087/c4c18df0-c2bb-4b8c-b7c0-50ea500dd200)# CongbRenderer
+# Congb Renderer
+
 
 ## 生成项目
 目前仅支持Windows平台
@@ -10,19 +11,17 @@ cmake ..
 
 ## 效果图例
 
+### 1k point lights in Sponza
 ![image](https://github.com/Ken-In/CongbRenderer/assets/55162087/d8649e5a-400e-4d8d-aa62-74dba431b736)
 
-<center> <h4>1k point lights in Sponza</h4> </center>
-
+### Z slices debug
 ![image](https://github.com/Ken-In/CongbRenderer/assets/55162087/86f92331-c706-460f-8e09-36af82696417)
 
-<center> <h4>Z slices debug</h4> </center>
-
+### Cluster light nums debug
 ![image](https://github.com/Ken-In/CongbRenderer/assets/55162087/ae24eb0d-5682-4758-80b0-382bc0b4532a)
 
-<center> <h4>Cluster light count debug</h4> </center>
 
-## 主要Features
+## 主要 Features
 
 * Clustered Forward Renderer
 * Physically Based shading
@@ -52,7 +51,7 @@ cmake ..
 
 ## References
 
-* [HybridRenderingEngine](https://github.com/Angelo1211/HybridRenderingEngine/wiki/References): 源代码仓库.
+* [HybridRenderingEngine](https://github.com/Angelo1211/HybridRenderingEngine/wiki/References): 参考源代码仓库.
 * [Learn OpenGL](https://learnopengl.com/Introduction): 非常好的图形入门教程，不仅限于 OpenGL 教程.
 * [Doom(2016) - Graphics Study](http://www.adriancourreges.com/blog/2016/09/09/doom-2016-graphics-study/): 参考了其中的深度切分.
 * [Efficient Real-Time Shading with Many Lights](https://www.zora.uzh.ch/id/eprint/107598/1/a11-olsson.pdf): Cluster Shading 论文.
