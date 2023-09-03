@@ -18,6 +18,11 @@ uniform sampler2D lightMap;
 uniform sampler2D metalRoughMap;
 uniform sampler2D shadowMap;
 
+// IBL textures
+uniform samplerCube irradianceMap;
+uniform samplerCube prefilterMap;
+uniform sampler2D brdfLUT;
+
 uniform float zFar;
 uniform float zNear;
 uniform vec3 cameraPos_wS;
@@ -48,6 +53,7 @@ layout (std430, binding = 3) buffer lightSSBO{
 #define SHADOW_CASTING_POINT_LIGHTS 4
 #define M_PI 3.1415926535897932384626433832795
 uniform float far_plane;
+uniform int maxLightsPerTile;
 uniform samplerCube depthMaps[SHADOW_CASTING_POINT_LIGHTS];
 
 // cluster
@@ -84,15 +90,21 @@ vec3( 1,  0,  1), vec3(-1,  0,  1), vec3( 1,  0, -1), vec3(-1,  0, -1),
 vec3( 0,  1,  1), vec3( 0, -1,  1), vec3( 0, -1, -1), vec3( 0,  1, -1)
 );
 
+vec3 colors[8] = vec3[](
+vec3(0, 0, 0),    vec3( 0,  0,  1), vec3( 0, 1, 0),  vec3(0, 1,  1),
+vec3(1,  0,  0),  vec3( 1,  0,  1), vec3( 1, 1, 0),  vec3(1, 1, 1)
+);
+
 uniform bool normalMapped;
 uniform bool aoMapped;
 uniform bool IBL;
 uniform bool slices;
+uniform bool clusters;
 
 // functions
 float calcDirShadow(vec4 fragPosLightSpace);
 vec3 calcDirLight(DirLight light, vec3 normal, vec3 viewDir, vec3 albedo, float rough, float metal, float shadow, vec3 F0);
-vec3 calcPointLight(uint index, vec3 normal, vec3 fragPos, vec3 viewDir, vec3 albedo, float viewDistance);
+vec3 calcPointLight(uint index, vec3 normal, vec3 fragPos, vec3 viewDir, vec3 albedo, float rough, float metal, vec3 F0,  float viewDistance);
 float calcPointLightShadows(samplerCube depthMap, vec3 lightToFrag, float viewDistance);
 
 // PBR functions
@@ -142,7 +154,7 @@ void main() {
     
     // directional light radiance
     float shadow    = calcDirShadow(fs_in.fragPos_lS);
-    radianceOut += albedo * (1.0f - shadow);
+    radianceOut += calcDirLight(dirLight, norm, viewDir, albedo, roughness, metallic, shadow, F0) ;
     
     // point light radiance
     uint zTile     = uint(max(log2(linearDepth(gl_FragCoord.z)) * scale + bias, 0.0));
@@ -159,18 +171,46 @@ void main() {
     for(uint i = 0; i < lightCount; i++)
     {
         uint lightVectorIndex = globalLightIndexList[lightIndexOffset + i];
-        radianceOut += calcPointLight(lightVectorIndex, norm, fs_in.fragPos_wS, viewDir, albedo, viewDistance);
+        radianceOut += calcPointLight(lightVectorIndex, norm, fs_in.fragPos_wS, viewDir, albedo, roughness, metallic, F0, viewDistance);
     }
     
     // ambient 
-    radianceOut += albedo * 0.05f;
+    vec3 ambient = vec3(0.025) * albedo;
+    if(IBL)
+    {
+        vec3  kS = fresnelSchlickRoughness(max(dot(norm, viewDir), 0.0), F0, roughness);
+        vec3  kD = 1.0 - kS;
+        kD *= 1.0 - metallic;
+        vec3 irradiance = texture(irradianceMap, norm).rgb;
+        vec3 diffuse    = irradiance * albedo;
+
+        const float MAX_REFLECTION_LOD = 4.0;
+        vec3 prefilteredColor = textureLod(prefilterMap, reflectDir, roughness * MAX_REFLECTION_LOD).rgb;
+        vec2 envBRDF = texture(brdfLUT, vec2(max(dot(norm, viewDir), 0.0), roughness)).rg;
+        vec3 specular = prefilteredColor * (kS * envBRDF.x + envBRDF.y);
+        ambient = (kD * diffuse + specular);
+    }
+    if(aoMapped)
+    {
+        ambient *= ao;
+    }
+    radianceOut += ambient;
     
-    float factor = lightCount / 100.0;
-    factor = clamp(factor, 0.0, 1.0);
-    //FragColor = mix(vec4(0.0, 1.0, 0.0, 1.0), vec4(1.0, 0.0, 0.0, 1.0), factor);
-    FragColor = vec4(radianceOut, 1.0);
+    radianceOut += emissive;
     
-    //FragColor = vec4(tileIndex / (16.0 * 9.0 * 24.0));
+    if(slices){
+        FragColor = vec4(colors[uint(mod(float(zTile), 8.0))], 1.0);
+    }
+    else if(clusters)
+    {
+        float factor = lightCount / float(maxLightsPerTile);
+        factor = clamp(factor, 0.0, 1.0);
+        FragColor = mix(vec4(0.0, 1.0, 0.0, 1.0), vec4(1.0, 0.0, 0.0, 1.0), factor);
+    }
+    else{
+        FragColor = vec4(radianceOut, 1.0);
+    }
+    
 }
 
 float calcDirShadow(vec4 fragPosLightSpace){
@@ -218,8 +258,8 @@ vec3 calcDirLight(DirLight light, vec3 normal, vec3 viewDir, vec3 albedo, float 
     return radiance;
 }
 
-vec3 calcPointLight(uint index, vec3 normal, vec3 fragPos, vec3 viewDir,
-vec3 albedo, float viewDistance)
+vec3 calcPointLight(uint index, vec3 normal, vec3 fragPos,
+vec3 viewDir, vec3 albedo, float rough, float metal, vec3 F0,  float viewDistance)
 {
     // 点光源信息
     vec3 position = pointLight[index].position.xyz;
@@ -235,8 +275,6 @@ vec3 albedo, float viewDistance)
     // 衰减
     float distance    = length(position - fragPos);
     float attenuation = pow(clamp(1 - pow((distance / radius), 4.0), 0.0, 1.0), 2.0)/(1.0  + (distance * distance));
-    /*float x = distance / radius;
-    float attenuation = 1 / pow(x, 2.0);*/
     vec3 radianceIn   = color * attenuation;
 
     // 光源到像素

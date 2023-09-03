@@ -8,8 +8,6 @@ uniform mat4 VP;
 void main(){
     TexCoords = aPos;
     vec4 pos = VP * vec4(aPos, 1.0);
-    //trick to have the z position always equal to one 
-    //because during perspective division, everything will be
-    //divided by the homogenous component w and if z = w, then w/w = 1
+    // 因为 vertex shader 后会进行一次透视除法 xyz/w， 将 z 设为 w， 即可使 z 一直为 1保持在远平面
     gl_Position = pos.xyww;
 }

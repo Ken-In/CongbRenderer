@@ -28,8 +28,9 @@ namespace congb
         void postProcess();
 
         Shader helloTriangleShader, simpleShader, skyboxShader, fillCubeMapShader,
-               highPassFilterShader, gaussianBlurShader, screenSpaceShader,
-               dirShadowShader, pointShadowShader;
+               dirShadowShader, pointShadowShader,
+               convolveCubeMapShader, preFilterSpecShader, integrateBRDFShader,
+               highPassFilterShader, gaussianBlurShader, screenSpaceShader;
 
         ComputeShader buildAABBGridCompShader, cullLightsCompShader;
         
@@ -50,7 +51,7 @@ namespace congb
         // light settings
         unsigned int numLights;
         const unsigned int maxLights = 5000;
-        const unsigned int maxLightsPerTile = 1000;
+        const unsigned int maxLightsPerTile = 100;
 
         // SSBO
         unsigned int AABBvolumeGridSSBO, screenToViewSSBO;

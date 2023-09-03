@@ -6,7 +6,7 @@
 namespace congb
 {
     const glm::mat4 CubeMap::captureProjection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 10.0f);
-    const glm::mat4 CubeMap::capatureViews[6]  =
+    const glm::mat4 CubeMap::captureViews[6]  =
         {
         glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, -1.0f, 0.0f)),
         glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(-1.0f, 0.0f, 0.0f), glm::vec3(0.0f, -1.0f, 0.0f)),
@@ -128,7 +128,7 @@ namespace congb
 
         for(unsigned int i = 0; i < numSidesInCube; i++)
         {
-            convolveShader.setMat4("view", capatureViews[i]);
+            convolveShader.setMat4("view", captureViews[i]);
             glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
                                     GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, textureID, 0);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -139,6 +139,37 @@ namespace congb
     // IBL specular
     void CubeMap::preFilterCubeMap(const unsigned environmentMap, const unsigned captureRBO, const Shader& filterShader)
     {
+        filterShader.use();
+        filterShader.setInt("environmentMap", 0);
+        filterShader.setMat4("projection", captureProjection);
+    
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, environmentMap);
+
+        //For each Mip level we have to pre-filter the cubemap at each cube face
+        for( unsigned int mip = 0; mip < maxMipLevels; ++mip){
+            //Mip levels are decreasing powers of two of the original resolution of the cubemap
+            unsigned int mipWidth  = unsigned int( width  * std::pow(0.5f, mip));
+            unsigned int mipHeight = unsigned int( height * std::pow(0.5f, mip));
+
+            //The depth component needs to be resized for each mip level too
+            glBindRenderbuffer(GL_RENDERBUFFER, captureRBO);
+            glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, mipWidth, mipHeight);
+            glViewport(0, 0, mipWidth, mipHeight);
+
+            filterShader.setFloat("roughness", mip / (float)(maxMipLevels - 1));
+
+            for(unsigned int i = 0; i < numSidesInCube; ++i){
+                filterShader.setMat4("view", captureViews[i]);
+
+                glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, 
+                                       GL_TEXTURE_CUBE_MAP_POSITIVE_X + i,
+                                       textureID, mip);
+
+                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+                drawCube();
+            }
+        }
     }
 
     void CubeMap::equiRectangularToCubeMap(const unsigned equirectangularMap, const int resolution,
@@ -154,7 +185,7 @@ namespace congb
 
         for(unsigned int i = 0; i < numSidesInCube; i++)
         {
-            transformShader.setMat4("view", capatureViews[i]);
+            transformShader.setMat4("view", captureViews[i]);
             glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
                                     GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, textureID, 0);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);

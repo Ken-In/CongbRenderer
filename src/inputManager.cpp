@@ -1,5 +1,8 @@
 #include "inputManager.h"
 
+#include "imgui/imgui.h"
+#include "imgui/imgui_impl_sdl.h"
+
 namespace congb
 {
     InputManager::InputManager()
@@ -25,11 +28,20 @@ namespace congb
     {
         SDL_Event event;
 
+        ImGuiIO& io = ImGui::GetIO();
+
         while (SDL_PollEvent(&event))
         {
-            if(done)
+            if(event.type == SDL_QUIT)
             {
+                done = true;
                 return;
+            }
+            else if(io.WantCaptureKeyboard || io.WantCaptureMouse )
+            {
+                // 和ui交互时停止 camera 动作
+                sceneCamera->activeMoveStates.clear();
+                ImGui_ImplSDL2_ProcessEvent(&event);
             }
             else
             {

@@ -5,11 +5,10 @@ in vec2 TexCoords;
 
 uniform sampler2D screenTexture;
 
-//absolutely could be a compute shader..!
 void main(){
     vec3 color = texture(screenTexture, TexCoords).rgb;
-    //these values for the vec3 come from how our eyes naturally see
-    //grayscale values. Something to do with color theory, but I'm not 100% sure
+    //这里的亮度系数向量 vec3 是根据人眼对不同颜色的敏感度设定的
+    //其中 0.2126、0.7152 和 0.0722 分别对应于红色、绿色和蓝色的权重。
     float brightness = dot(color, vec3(0.2126, 0.7152, 0.0722));
 
     //high band pass filter

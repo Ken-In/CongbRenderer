@@ -2,6 +2,9 @@
 
 #include <cstdio>
 #include <glad/glad.h>
+#include "imgui/imgui.h"
+#include "imgui/imgui_impl_sdl.h"
+#include "imgui/imgui_impl_opengl3.h"
 
 namespace congb
 {
@@ -25,11 +28,23 @@ namespace congb
         if( !createGLContext()){
             return false;
         }
+
+        if( !createImGuiContext()){
+            return false;
+        }
+        
         return true;
     }
 
     void DisplayManager::shutDown()
     {
+        // ui
+        ImGui::EndFrame();
+        ImGui_ImplOpenGL3_Shutdown();
+        ImGui_ImplSDL2_Shutdown();
+        ImGui::DestroyContext();
+
+        // sdl
         SDL_GL_DeleteContext(mContext); 
 
         SDL_DestroyWindow(mWindow);
@@ -47,7 +62,15 @@ namespace congb
 
     void DisplayManager::swapDisplayBuffer()
     {
+        ImGui::EndFrame();
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+        
         SDL_GL_SwapWindow(mWindow);
+
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplSDL2_NewFrame(mWindow);
+        ImGui::NewFrame();
     }
 
     bool DisplayManager::startSDL()
@@ -112,14 +135,36 @@ namespace congb
 
         // 交换buffer 1 = 垂直同步
         SDL_GL_SetSwapInterval(1);
-        /*glEnable(GL_CULL_FACE);
+        glEnable(GL_CULL_FACE);
+        // 多重采样
         glEnable(GL_MULTISAMPLE);
+        // gamma 矫正
         glEnable(GL_FRAMEBUFFER_SRGB);
-        glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);*/
+        glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
 
         int w, h;
         SDL_GetWindowSize(mWindow, &w, &h);
         glViewport(0, 0, w, h);
+        return true;
+    }
+
+    bool DisplayManager::createImGuiContext()
+    {
+        ImGuiContext * mGuiContext = ImGui::CreateContext();
+        if( mGuiContext == nullptr){
+            printf("Could not load IMGUI context!\n");
+            return false;
+        }
+
+        //Init and configure for OpenGL and SDL
+        ImGui_ImplSDL2_InitForOpenGL(mWindow, mContext);
+        ImGui_ImplOpenGL3_Init(GLSL_VERSION);
+
+        //Imgui first frame setup
+        ImGui::StyleColorsDark();
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplSDL2_NewFrame(mWindow);
+        ImGui::NewFrame();
         return true;
     }
 }

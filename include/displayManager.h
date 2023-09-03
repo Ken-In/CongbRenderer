@@ -27,6 +27,8 @@ namespace congb
         bool startOpenGL();
         bool createWindow();
         bool createGLContext();
+        bool createImGuiContext();
+
 
         SDL_Window*      mWindow;
         SDL_GLContext    mContext;

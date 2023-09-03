@@ -3,6 +3,8 @@
 #include <random>
 
 #include "gpuData.h"
+#include "imgui/imgui.h"
+
 namespace congb
 {
     RenderManager::RenderManager()
@@ -53,9 +55,6 @@ namespace congb
 
     void RenderManager::shutDown()
     {
-        /*glDeleteVertexArrays(1, &VAO);
-        glDeleteBuffers(1, &VBO);*/
-        
         screen      = nullptr;
         sceneCamera = nullptr;
         sceneLocator= nullptr;
@@ -63,6 +62,20 @@ namespace congb
 
     void RenderManager::render()
     {
+        //Initiating rendering gui
+        ImGui::Begin("Rendering Controls");
+        ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+
+        if(ImGui::CollapsingHeader("Controls")){
+            ImGui::Text("Strafe: w a s d");
+            ImGui::Text("Rotate Camera: hold left click + mouse");
+            ImGui::Text("Up&Down: q e");
+            ImGui::Text("Reset Camera: r");
+            ImGui::Text("Exit: ESC");
+            ImGui::InputFloat3("Camera Pos", (float*)&sceneCamera->position); //Camera controls
+            ImGui::SliderFloat("Movement speed", &sceneCamera->camSpeed, 0.005f, 1.0f);
+        }
+        
         //Direction light shadow map
         glDisable(GL_BLEND);
         glEnable(GL_DEPTH_TEST);
@@ -82,16 +95,19 @@ namespace congb
         cullLightsCompShader.dispatch(1,1,6); 
         
         multiSampledFBO.clear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT, glm::vec3(0.0f));
-        currentScene->drawFullScene(simpleShader, skyboxShader);
+        currentScene->drawFullScene(simpleShader, skyboxShader, maxLightsPerTile);
 
         multiSampledFBO.blitTo(simpleFBO, GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         
         postProcess();
-        
         GLenum error = glGetError();
         if (error != GL_NO_ERROR) {
-            printf("OpenGL error：%d\n", error);
+            printf("OpenGL error:%d\n", error);
         }
+
+        // ui 绘制结束
+        ImGui::End();
+        
         screen->swapDisplayBuffer();
     }
 
@@ -192,9 +208,7 @@ namespace congb
 
             struct GPULight *lights = (struct GPULight *)glMapBuffer(GL_SHADER_STORAGE_BUFFER, bufMask);
             PointLight *light;
-            std::random_device rd; // 用于获取种子
-            std::mt19937 gen(rd()); // 使用种子初始化梅森旋转发生器
-            std::uniform_real_distribution<> dis(5.0, 20.0); 
+           
             for(unsigned int i = 0; i < numLights; ++i ){
                 //Fetching the light from the current scene
                 light = currentScene->getPointLight(i);
@@ -202,7 +216,7 @@ namespace congb
                 lights[i].color     = glm::vec4(light->color, 1.0f);
                 lights[i].enabled   = 1; 
                 lights[i].intensity = 1.0f;
-                lights[i].range     = static_cast<float>(dis(gen));
+                lights[i].range     = light->range;
             }
             glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
             glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, lightSSBO);
@@ -253,6 +267,11 @@ namespace congb
         // preProcess
         success &= buildAABBGridCompShader.setup("6_clusterShader.comp");
         success &= cullLightsCompShader.setup("6_clusterCullLightShader.comp");
+
+        // IBL
+        success &= convolveCubeMapShader.setup("7_cubeMapShader.vert", "7_convolveCubemapShader.frag");
+        success &= preFilterSpecShader.setup("7_cubeMapShader.vert", "7_preFilteringShader.frag");
+        success &= integrateBRDFShader.setup("4_screenShader.vert", "7_brdfIntegralShader.frag");
         
         if(!success){
             printf("Error loading pre-processing Shaders!\n");
@@ -301,6 +320,30 @@ namespace congb
             currentScene->mainSkybox.fillCubeMapWithTexture(fillCubeMapShader);
         }
 
+        // Cubemap convolution
+        int res = currentScene->irradianceMap.width;
+        captureFBO.resizeFrameBuffer(res);
+        unsigned int environmentID = currentScene->mainSkybox.skyBoxCubeMap.textureID;
+        currentScene->irradianceMap.convolveCubeMap(environmentID, convolveCubeMapShader);
+
+        //Cubemap prefiltering
+        unsigned int captureRBO = captureFBO.depthBuffer;
+        currentScene->specFilteredMap.preFilterCubeMap(environmentID, captureRBO, preFilterSpecShader);
+
+        //BRDF lookup texture
+        integrateBRDFShader.use();
+        res = currentScene->brdfLUTTexture.height;
+        captureFBO.resizeFrameBuffer(res);
+        unsigned int id = currentScene->brdfLUTTexture.textureID;
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, id, 0);
+        //glViewport(0, 0, res, res);
+        glViewport(0, 0, 0, 0);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        canvas.draw();
+
+        //Making sure that the viewport is the correct size after rendering
+        glViewport(0, 0, DisplayManager::SCREEN_WIDTH, DisplayManager::SCREEN_HEIGHT);
+        
         // draw point light shadow maps
         glEnable(GL_DEPTH_TEST);
         glDepthMask(true);
@@ -316,6 +359,11 @@ namespace congb
 
     void RenderManager::postProcess()
     {
+        if(ImGui::CollapsingHeader("Post-processing")){
+            ImGui::SliderInt("Blur", &sceneCamera->blurAmount, 0, 10);
+            ImGui::SliderFloat("Exposure", &sceneCamera->exposure, 0.1f, 5.0f);
+        }
+        
         pingPongFBO.bind();
         pingPongFBO.clear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT, glm::vec3(0.0f));
         if( sceneCamera->blurAmount > 0){

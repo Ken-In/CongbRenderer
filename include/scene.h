@@ -22,7 +22,7 @@ namespace congb
 
         void drawPointLightShadow(const Shader &pointLightShader, unsigned int index, unsigned int cubeMapTarget);
         void drawDirLightShadow(const Shader &dirLightShader, unsigned int targetTextureID);
-        void drawFullScene(const Shader &mainSceneShader, const Shader &skyboxShader);
+        void drawFullScene(const Shader &mainSceneShader, const Shader &skyboxShader, unsigned int maxLightsPerTile);
         void drawDepthPass(const Shader &depthPassShader);
 
         std::vector<Model*>* getVisibleModels();
@@ -33,14 +33,18 @@ namespace congb
         bool loadingError;
 
         Skybox mainSkybox;
+        CubeMap irradianceMap, specFilteredMap;
+        Texture brdfLUTTexture;
+        
         unsigned int pointLightCount;
         
         Camera *mainCamera;
         
     private:
         std::string sceneID;
-        bool slices = false;
-
+        // debug
+        bool slices = false, clusters = false;
+        
         DirectionalLight dirLight;
         PointLight *pointLights = nullptr;
 

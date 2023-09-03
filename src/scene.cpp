@@ -4,6 +4,7 @@
 #include <random>
 
 #include "fileManager.h"
+#include "imgui/imgui.h"
 
 namespace congb
 {
@@ -115,7 +116,7 @@ namespace congb
         }
     }
 
-    void Scene::drawFullScene(const Shader& mainSceneShader, const Shader& skyboxShader)
+    void Scene::drawFullScene(const Shader& mainSceneShader, const Shader& skyboxShader, unsigned int maxLightsPerTile)
     {
         glm::mat4 MVP   = glm::mat4(1.0);
         glm::mat4 M     = glm::mat4(1.0);
@@ -125,17 +126,35 @@ namespace congb
         const unsigned int numTextures = 5;
 
         // todo : ui
-
-        // set lights
+        if(ImGui::CollapsingHeader("Directional Light Settings")){
+            ImGui::TextColored(ImVec4(1,1,1,1), "Directional light Settings");
+            ImGui::ColorEdit3("Color", (float *)&dirLight.color);
+            ImGui::SliderFloat("Strength", &dirLight.strength, 0.1f, 200.0f);
+            ImGui::SliderFloat("BoxSize", &dirLight.orthoBoxSize, 0.1f, 500.0f);
+            ImGui::SliderFloat3("Direction", (float*)&dirLight.direction, -5.0f, 5.0f);
+        }
+        
+        if(ImGui::CollapsingHeader("Cluster Debugging Light Settings")){
+            ImGui::Checkbox("Display depth Slices", &slices);
+            ImGui::Checkbox("Display light count per cluster", &clusters);
+        }
+        
         mainSceneShader.use();
-        mainSceneShader.setVec3("dirLight.direction", dirLight.direction);
+        
+        // debug
         mainSceneShader.setBool("slices", slices);
+        mainSceneShader.setBool("clusters", clusters);
+        
+        // set lights
+        mainSceneShader.setVec3("dirLight.direction", dirLight.direction);
         mainSceneShader.setVec3("dirLight.color",   dirLight.strength * dirLight.color);
         mainSceneShader.setMat4("lightSpaceMatrix", dirLight.lightSpaceMatrix);
         mainSceneShader.setVec3("cameraPos_wS", mainCamera->position);
         mainSceneShader.setFloat("zFar", mainCamera->cameraFrustum.farPlane);
         mainSceneShader.setFloat("zNear", mainCamera->cameraFrustum.nearPlane);
-
+        // 为了效果更明显 传入 maxLightsPerTile / 2
+        mainSceneShader.setInt("maxLightsPerTile", maxLightsPerTile / 2);
+        
         // 支持4个点光 shadowMap
         unsigned int shadowNum = pointLightCount > 4 ? 4 : pointLightCount;
         for (unsigned int i = 0; i < shadowNum; ++i)
@@ -149,11 +168,26 @@ namespace congb
             mainSceneShader.setFloat("far_plane", light->zFar);
         }
         
-        //Direction light shadow map
+        // Direction light shadow map
         glActiveTexture(GL_TEXTURE0 + numTextures + shadowNum);
         mainSceneShader.setInt("shadowMap", numTextures + shadowNum);
         glBindTexture(GL_TEXTURE_2D, dirLight.depthMapTextureID);
 
+        // IBL diffuse
+        glActiveTexture(GL_TEXTURE0 + numTextures + shadowNum + 1);
+        mainSceneShader.setInt("irradianceMap", numTextures + shadowNum + 1);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, irradianceMap.textureID);
+
+        // IBL specular
+        glActiveTexture(GL_TEXTURE0 + numTextures + shadowNum + 2);
+        mainSceneShader.setInt("prefilterMap", numTextures + shadowNum + 2);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, specFilteredMap.textureID);
+
+        //Setting lookup table
+        glActiveTexture(GL_TEXTURE0 + numTextures + shadowNum + 3);
+        mainSceneShader.setInt("brdfLUT", numTextures + shadowNum + 3);
+        glBindTexture(GL_TEXTURE_2D, brdfLUTTexture.textureID);
+        
         for(unsigned int i = 0; i < visibleModels.size(); ++i)
         {
             Model *currentModel = visibleModels[i];
@@ -223,17 +257,16 @@ namespace congb
         printf("Loading models...\n");
         loadSceneModels(configJson);
 
-        // todo: skybox
         printf("Loading models...\n");
         CubeMap::cubeMapCube.setup();
         loadSkyBox(configJson);
         
-        // todo: lights
         printf("Loading lights...\n");
         loadLights(configJson);
         
-        // todo: enviroment map
-
+        printf("Generating environment maps...\n");
+        generateEnvironmentMaps();
+        
         printf("Loading Complete!...\n");
         bool res = modelsInScene.empty();
         return !res;
@@ -241,6 +274,27 @@ namespace congb
 
     void Scene::generateEnvironmentMaps()
     {
+        //Diffuse map
+        irradianceMap.width = 32;
+        irradianceMap.height = 32;
+        irradianceMap.generateCubeMap(irradianceMap.width, irradianceMap.height, HDR_MAP);
+
+        //Specular map
+        specFilteredMap.width = 128;
+        specFilteredMap.height = 128;
+        specFilteredMap.generateCubeMap(specFilteredMap.width, specFilteredMap.height, PREFILTER_MAP);
+
+        //Setting up texture ahead of time
+        unsigned int res = 512;
+        brdfLUTTexture.height = res;
+        brdfLUTTexture.width  = res;
+        glGenTextures(1, &brdfLUTTexture.textureID);
+        glBindTexture(GL_TEXTURE_2D, brdfLUTTexture.textureID);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RG16F, res, res, 0, GL_RG, GL_FLOAT, NULL);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     }
 
     void Scene::loadSkyBox(const json& sceneConfigJson)
@@ -314,6 +368,7 @@ namespace congb
                 pointLights[i].zNear = (float)light["zNear"];
                 pointLights[i].zFar = (float)light["zFar"];
                 pointLights[i].shadowRes = (unsigned int)light["shadowRes"];
+                pointLights[i].range = 65.0f;
 
                 //Matrix setup
                 pointLights[i].shadowProjectionMat = glm::perspective(glm::radians(90.0f), 1.0f,
@@ -336,10 +391,12 @@ namespace congb
             std::uniform_real_distribution<> disX(-130.0, 130.0); 
             std::uniform_real_distribution<> disY(5.0, 90.0); 
             std::uniform_real_distribution<> disZ(-60.0, 60.0);
+            std::uniform_real_distribution<> disRange(5.0, 20.0); 
             for(int i = pointLightCount; i < totalLightNumInScene; i++)
             {
                 pointLights[i].position = glm::vec3(disX(gen), disY(gen), disZ(gen));
                 pointLights[i].color    = glm::vec3(disR(gen), disG(gen), disB(gen));
+                pointLights[i].range    = disRange(gen);
             }
             pointLightCount = totalLightNumInScene;
         }
