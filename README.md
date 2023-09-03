@@ -1,4 +1,4 @@
-# CongbRenderer
+![image](https://github.com/Ken-In/CongbRenderer/assets/55162087/c4c18df0-c2bb-4b8c-b7c0-50ea500dd200)# CongbRenderer
 
 ## 生成项目
 目前仅支持Windows平台
@@ -10,9 +10,15 @@ cmake ..
 
 ## 效果图例
 
+![image](https://github.com/Ken-In/CongbRenderer/assets/55162087/d8649e5a-400e-4d8d-aa62-74dba431b736)
+
 <center> <h4>1k point lights in Sponza</h4> </center>
 
+![image](https://github.com/Ken-In/CongbRenderer/assets/55162087/86f92331-c706-460f-8e09-36af82696417)
+
 <center> <h4>Z slices debug</h4> </center>
+
+![image](https://github.com/Ken-In/CongbRenderer/assets/55162087/ae24eb0d-5682-4758-80b0-382bc0b4532a)
 
 <center> <h4>Cluster light count debug</h4> </center>
 
